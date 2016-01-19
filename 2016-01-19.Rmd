@@ -1,0 +1,126 @@
+---
+title: 'MIE237'
+author: "Neil Montgomery"
+date: "2016-01-19"
+output: 
+  ioslides_presentation: 
+    css: '../../../styles.css' 
+    widescreen: true 
+    transition: 0.001
+---
+\newcommand{\Var}[1]{\text{Var}\left( #1 \right)}
+\newcommand{\E}[1]{E\left( #1 \right)}
+\newcommand{\Sample}[1]{#1_1,\ldots,#1_n}
+\newcommand{\od}[2]{\overline #1_{#2\cdot}}
+\newcommand{\flist}[2]{\{#1_1, #1_2, \ldots, #1_#2\}}
+
+# Inference with two independent numerical samples (9.8 and 10.5) continued...
+
+## Alternative "design" for inference on mean differences
+
+* By "design" I mean the specific plan to gather a sample. 
+
+* So far the design was motivated by the problem: two populations, two means (and variances), interest in the difference between the mean. Plan: gather two independent samples.
+
+> * That's not the only way to learn about a mean difference. 
+
+> * The sampling plan might instead involve collecting pairs $\left((Y_{11}, Y_{21}), (Y_{12}, Y_{22}), \ldots, (Y_{1n}, Y_{2n})\right)$ (that are likely to be positively correlated.)
+
+> * In which case the correct analysis is to consider what is effectively a single sample $Y_{d_1}, Y_{d_2},\ldots, Y_{d_n}$ with $Y_{d_i} = Y_{1i}-Y_{2i}$
+
+## "Paired observations" (9.9 and part of 10.5)
+
+* The model reduces to $Y_{d_i} = \mu_d + \varepsilon_i \text{ with } \varepsilon_i \sim N\left(\mu_d, \sigma_d^2\right)$.
+
+* The analysis is then just a good ol' one sample $t$ test/interval.
+
+* The book possibly doesn't make this clear enough: **The analysis must follow the model/sampling plan**
+
+## Example: 9.92
+
+"...Calcium is a required element for plants and animals. The amount taken up
+and stored in plants is closely correlated to the amount present in the soil. It
+was hypothesized that a fire may change the calcium levels present in the soil and thus affect the amount available to deer.
+
+A large tract of land in the Fishburn Forest was selected for a prescribed burn.
+Soil samples were taken from 12 plots of equal area just prior to the burn and
+analyzed for calcium. Postburn calcium levels were analyzed from the same plots."
+
+## Example: 9.92 (with a small dose of reality)
+
+```{r, message=FALSE, error=TRUE}
+library(rio)
+burn <- import("Ex09.92.txt")
+```
+
+Hmm.
+
+## Example: 9.92
+
+```{r}
+burn <- import("Ex09.92.txt", fread=FALSE) # Seems OK
+```
+
+```{r, echo=FALSE, message=FALSE}
+library(dplyr)
+burn %>% 
+  mutate(calcium_diff = Preburn - Postburn) -> burn_diff
+
+burn_diff %>% 
+  summarize(n=n(), mean = mean(calcium_diff), sd = sd(calcium_diff))
+```
+
+```{r}
+t.test(burn_diff$calcium_diff)
+```
+
+## Model assumptions
+
+Just the normality assumption (on the differences) - all OK.
+
+```{r, echo=FALSE}
+library(ggplot2)
+burn_diff %>% 
+  ggplot(aes(sample = calcium_diff)) + stat_qq()
+```
+
+## The Wrong Analysis
+
+```{r}
+t.test(burn$Preburn, burn$Postburn)
+```
+
+## Cause of the difference
+```{r, echo=FALSE}
+library(tidyr)
+burn %>% 
+  mutate(ranked_plots = rank(Preburn, ties="r")) %>% 
+  gather(key = "burn_status", value = "calcium", -ranked_plots) %>% 
+  ggplot(aes(x=ranked_plots, y = calcium, color = burn_status)) + 
+  geom_point() + scale_x_discrete()
+```
+
+## Extreme example
+```{r, echo=FALSE}
+set.seed(1)
+eye_drop <- data.frame(ranked_subj = 1:20, drop1 = sort(rnorm(20, 60, 10)))
+eye_drop %>% 
+  mutate(drop2 = drop1 + rnorm(20, 6, 3)) -> eye_drops
+eye_drops %>% 
+  gather("drop", dilation_time, -ranked_subj) %>% 
+  ggplot(aes(x=ranked_subj, y = dilation_time, color=drop)) + geom_point()
+```
+
+## Extreme example - correct
+
+```{r}
+t.test(eye_drops$drop1 - eye_drops$drop2)
+```
+
+## Extreme example - wrong
+```{r}
+t.test(eye_drops$drop1, eye_drops$drop2)
+```
+
+
+
